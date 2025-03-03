@@ -1,0 +1,58 @@
+{
+    "name": "ArcQualityInspector",
+    "dockerFile": "Dockerfile",
+    "context": "..",
+    
+    // 在容器启动后设置要执行的命令 && mkdir -p models static/images data
+    "postCreateCommand": "echo 'DevContainer创建完成！' ",
+    
+    // 设置要转发的端口
+    "forwardPorts": [5000],
+    "containerEnv": {
+        "HTTP_PROXY": "",
+        "HTTPS_PROXY": "",
+        "NO_PROXY": "*",
+        "http_proxy": "",
+        "https_proxy": ""
+      },
+    // 复制.bashrc配置和VS Code设置
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/bin/bash"
+                    }
+                },
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "python.linting.enabled": true,
+                "python.linting.pylintEnabled": true,
+                "python.formatting.provider": "black",
+                "python.formatting.blackPath": "/usr/local/bin/black",
+                // 禁用所有代理设置
+                "http.proxy": "",
+                "https.proxy": "",
+                "github.copilot.advanced.proxy": "",
+                // 配置 Copilot 使用直接连接
+                "github.copilot.advanced.debug.useElectronFetcher": false,
+                "github.copilot.advanced.debug.useNodeFetcher": false,
+                "github.copilot.advanced.debug.useNodeFetchFetcher": false
+            },
+            
+            // 安装实用的VS Code扩展
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "njpwerner.autodocstring",
+                "kevinrose.vsc-python-indent",
+                "visualstudioexptteam.vscodeintellicode",
+                "ms-azuretools.vscode-docker",
+                "ms-python.black-formatter"
+            ]
+        }
+    },
+    
+    // 使用非root用户
+    "remoteUser": "vscode"
+}

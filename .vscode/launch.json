@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "启动检测系统",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/arc_quality_inspector.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "数据生成器测试",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/enhanced_arc_generator.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "导出ONNX模型",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/export_to_onnx.py",
+            "args": ["--model_path", "models/best_model.pth", "--onnx_path", "models/arc_model.onnx"],
+            "console": "integratedTerminal"
+        }
+    ]
+}

@@ -1,0 +1,8 @@
+numpy>=1.19.0
+matplotlib>=3.3.0
+onnxruntime>=1.8.0
+flask>=2.0.0
+scipy>=1.6.0
+black>=21.5b2
+pylint>=2.8.2
+scikit-learn>=0.24.2

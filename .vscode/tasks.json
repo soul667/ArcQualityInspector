@@ -1,0 +1,36 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "启动应用",
+            "type": "shell",
+            "command": "./start_app.sh",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "导出ONNX模型",
+            "type": "shell",
+            "command": "python src/export_to_onnx.py",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "生成数据样本",
+            "type": "shell",
+            "command": "python -c \"from src.enhanced_arc_generator import ArcDataGenerator; generator = ArcDataGenerator(); X, y, masks, params = generator.generate_dataset(100); generator.visualize_samples(X, y, masks, 5); print('生成了100个样本')\"",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        }
+    ]
+}
