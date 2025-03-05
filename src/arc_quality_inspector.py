@@ -1,84 +1,71 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
-import onnxruntime as ort
 import os
 import json
 import uuid
-from enhanced_arc_generator import ArcDataGenerator
+import glob
 import base64
+import shutil
 from io import BytesIO
 
-app = Flask(__name__)
+app = Flask(__name__, 
+           template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates'))
 
-# 确保目录存在
+# Ensure directories exist
 os.makedirs('static/images', exist_ok=True)
 os.makedirs('data', exist_ok=True)
+os.makedirs('data_cleaned', exist_ok=True)  # New directory for cleaned data
 
-# 初始化模型会话和数据生成器
-session = None
-try:
-    session = ort.InferenceSession("arc_quality_model.onnx")
-    print("ONNX模型加载成功")
-except Exception as e:
-    print(f"ONNX模型加载错误: {e}")
-
-# 初始化数据生成器
-generator = ArcDataGenerator(seq_length=100)
-
-# 存储会话数据
+# Store session data
 session_data = {}
 
-def detect_arc_quality(arc_points):
-    """使用ONNX模型检测圆弧质量"""
-    if session is None:
-        # 如果模型未加载，返回随机预测
-        return np.random.choice([0, 1]), np.random.random()
-        
-    # 准备输入数据
-    input_data = arc_points.reshape(1, len(arc_points), 1).astype(np.float32)
-    
-    # 运行推理
-    outputs = session.run(None, {'input': input_data})
-    
-    # 获取结果
-    confidence = float(outputs[0][0][0])
-    has_defect = 1 if confidence >= 0.5 else 0
-    
-    return has_defect, confidence
+def load_data_samples():
+    """Load samples from data directory"""
+    samples = []
+    for file in glob.glob('data/sample_*.json'):
+        with open(file, 'r') as f:
+            sample = json.load(f)
+            samples.append(sample)
+    return samples
 
-def plot_to_base64(arc_points, defect_mask=None, predicted_defect=None, confidence=None, human_judgment=None):
-    """将图表转换为base64字符串"""
+def save_data_sample(file_path, sample_data):
+    """Save modified sample data back to file"""
+    with open(file_path, 'w') as f:
+        json.dump(sample_data, f, indent=2)
+
+def plot_to_base64(arc_points, defect_mask=None, human_judgment=None):
+    """Convert plot to base64 string"""
     plt.figure(figsize=(10, 6))
-    plt.plot(arc_points, color='blue', linewidth=2, label='圆弧')
+    # Plot scatter points
+    x = np.arange(len(arc_points))
+    plt.scatter(x, arc_points, color='blue', s=1, alpha=0.4, label='Arc Points')
+    # Add light connecting line to show trend
+    # plt.plot(x, arc_points, color='blue', alpha=0.2, linewidth=1)
     
-    # 如果有缺陷掩码，标记真实缺陷区域
+    # Mark defect area if mask exists
     if defect_mask is not None:
         defect_indices = np.where(defect_mask == 1)[0]
         if len(defect_indices) > 0:
-            plt.axvspan(defect_indices[0], defect_indices[-1], alpha=0.3, color='red', label='标注的缺陷区域')
+            plt.axvspan(defect_indices[0], defect_indices[-1], alpha=0.3, color='red', label='Defect Area')
     
-    # 标题信息
-    title = "圆弧质量检测"
-    
-    if predicted_defect is not None:
-        prediction_text = "有缺陷" if predicted_defect == 1 else "无缺陷"
-        title += f"\n模型预测: {prediction_text}"
-        if confidence is not None:
-            title += f" (置信度: {confidence:.4f})"
+    # Title information
+    title = "Arc Data Labeling"
     
     if human_judgment is not None:
-        judgment_text = "接受" if human_judgment else "拒绝"
-        title += f"\n人工判断: {judgment_text}"
+        judgment_text = "Accept" if human_judgment == 0 else "Reject"
+        title += f"\nHuman Judgment: {judgment_text}"
     
     plt.title(title)
-    plt.xlabel("点索引")
-    plt.ylabel("值")
+    plt.xlabel("Point Index")
+    plt.ylabel("Value")
     plt.grid(True)
     if defect_mask is not None and np.any(defect_mask == 1):
         plt.legend()
     
-    # 转换为base64
+    # Convert to base64
     buf = BytesIO()
     plt.savefig(buf, format='png', dpi=100)
     plt.close()
@@ -89,13 +76,17 @@ def plot_to_base64(arc_points, defect_mask=None, predicted_defect=None, confiden
 
 @app.route('/')
 def home():
-    """主页"""
-    # 创建新会话
+    """Homepage"""
+    # Create new session
     session_id = str(uuid.uuid4())
+    
+    # Load all samples
+    samples = load_data_samples()
+    
     session_data[session_id] = {
-        'arcs': [],
+        'arcs': samples,
         'current_index': 0,
-        'total_generated': 0,
+        'total_samples': len(samples),
         'judgments': []
     }
     
@@ -104,105 +95,90 @@ def home():
         session_id=session_id
     )
 
-@app.route('/generate_arc', methods=['POST'])
-def generate_arc():
-    """生成新的圆弧数据"""
+@app.route('/next_arc', methods=['POST'])
+def next_arc():
+    """Get next arc data"""
     data = request.json
     session_id = data.get('session_id')
-    force_defect = data.get('force_defect')
+    direction = data.get('direction', 'next')  # 'next' or 'prev'
     
     if session_id not in session_data:
         return jsonify({'error': 'Invalid session ID'}), 400
+        
+    session = session_data[session_id]
+    current_index = session['current_index']
     
-    # 生成新的圆弧
-    if force_defect is not None:
-        force_defect = force_defect == 'true'
-        sample = generator.generate_arc_sample(force_defect=force_defect)
-    else:
-        sample = generator.generate_arc_sample()
+    # Update index based on direction
+    if direction == 'prev':
+        current_index = max(0, current_index - 2)  # -2 because we increment later
     
-    arc_points = sample['arc_points'].tolist()
-    has_defect = sample['has_defect']
-    defect_mask = sample['defect_mask'].tolist()
-    defect_params = sample['defect_params']
+    # Check if we have more data
+    if current_index >= session['total_samples']:
+        return jsonify({'message': 'No more samples'}), 404
+        
+    # Get current sample
+    sample = session['arcs'][current_index]
     
-    # 转换缺陷参数为可序列化格式
-    serializable_params = {}
-    for key, value in defect_params.items():
-        serializable_params[str(key)] = {
-            'region': value['region'],
-            'type': value['type']
-        }
+    # Increment index
+    session['current_index'] = current_index + 1
     
-    # 使用模型预测
-    predicted_defect, confidence = detect_arc_quality(sample['arc_points'])
+    # Generate image
+    arc_points = np.array(sample['arc_points'])
+    defect_mask = np.array(sample['defect_mask'])
+    img_str = plot_to_base64(arc_points, defect_mask)
     
-    # 保存到会话数据
-    arc_id = session_data[session_id]['total_generated']
-    session_data[session_id]['total_generated'] += 1
-    session_data[session_id]['arcs'].append({
-        'id': arc_id,
-        'points': arc_points,
-        'true_defect': has_defect,
-        'defect_mask': defect_mask,
-        'defect_params': serializable_params,
-        'predicted_defect': predicted_defect,
-        'confidence': confidence,
-        'human_judgment': None
-    })
-    
-    # 获取图表base64
-    img_str = plot_to_base64(
-        sample['arc_points'], 
-        sample['defect_mask'], 
-        predicted_defect, 
-        confidence
-    )
+    files = sorted(glob.glob('data/sample_*.json'))
+    current_file = files[current_index]
     
     return jsonify({
-        'arc_id': arc_id,
+        'arc_id': current_index,
         'arc_image': img_str,
-        'true_defect': has_defect,
-        'predicted_defect': int(predicted_defect),
-        'confidence': float(confidence)
+        'true_defect': sample['label'],
+        'file_path': current_file,
+        'file_name': os.path.basename(current_file)
     })
 
 @app.route('/submit_judgment', methods=['POST'])
 def submit_judgment():
-    """提交人工判断"""
+    """Submit judgment"""
     data = request.json
     session_id = data.get('session_id')
     arc_id = data.get('arc_id')
     judgment = data.get('judgment')
+    update_label = data.get('update_label', False)
     
     if session_id not in session_data:
         return jsonify({'error': 'Invalid session ID'}), 400
     
-    # 查找对应的圆弧
-    arc = None
-    for a in session_data[session_id]['arcs']:
-        if a['id'] == arc_id:
-            arc = a
-            break
+    session = session_data[session_id]
     
-    if arc is None:
-        return jsonify({'error': 'Arc not found'}), 404
+    # Check if arc_id is valid
+    if arc_id >= session['total_samples']:
+        return jsonify({'error': 'Invalid arc ID'}), 400
+        
+    # Get arc data
+    arc = session['arcs'][arc_id]
     
-    # 更新判断
+    # Update judgment
     arc['human_judgment'] = judgment
     session_data[session_id]['judgments'].append({
         'arc_id': arc_id,
-        'true_defect': arc['true_defect'],
-        'predicted_defect': arc['predicted_defect'],
+        'true_defect': arc['label'],
         'human_judgment': judgment
     })
     
-    # 重新生成图表
+    # Update label if requested
+    if update_label:
+        file_path = glob.glob('data/sample_*.json')[arc_id]
+        with open(file_path, 'r') as f:
+            sample_data = json.load(f)
+        sample_data['label'] = judgment
+        save_data_sample(file_path, sample_data)
+    
+    # Regenerate plot
     img_str = plot_to_base64(
-        np.array(arc['points']), 
-        np.array(arc['defect_mask']), 
-        arc['predicted_defect'], 
-        arc['confidence'],
+        np.array(arc['arc_points']), 
+        np.array(arc['defect_mask']),
         judgment
     )
     
@@ -211,9 +187,76 @@ def submit_judgment():
         'arc_image': img_str
     })
 
+@app.route('/delete_arc', methods=['POST'])
+def delete_arc():
+    """Delete arc data and file"""
+    data = request.json
+    session_id = data.get('session_id')
+    arc_id = data.get('arc_id')
+    
+    if session_id not in session_data:
+        return jsonify({'error': 'Invalid session ID'}), 400
+        
+    # Get file path
+    files = glob.glob('data/sample_*.json')
+    if arc_id >= len(files):
+        return jsonify({'error': 'Invalid arc ID'}), 400
+        
+    file_path = os.path.abspath(files[arc_id])
+    
+    # Delete file
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            # Reload samples after deletion
+            samples = load_data_samples()
+            if session_id in session_data:
+                session_data[session_id]['arcs'] = samples
+                session_data[session_id]['total_samples'] = len(samples)
+                # Adjust current_index if needed
+                if session_data[session_id]['current_index'] > len(samples):
+                    session_data[session_id]['current_index'] = len(samples)
+            return jsonify({'success': True, 'message': f'Deleted {file_path}'})
+        else:
+            return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/move_cleaned_data', methods=['POST'])
+def move_cleaned_data():
+    """Move processed data files to cleaned directory"""
+    data = request.json
+    session_id = data.get('session_id')
+    current_index = data.get('current_index', 0)
+    
+    if session_id not in session_data:
+        return jsonify({'error': 'Invalid session ID'}), 400
+        
+    # Get all files up to current index
+    files = sorted(glob.glob('data/sample_*.json'))[:current_index]
+    
+    moved_files = 0
+    for file_path in files:
+        try:
+            # Create destination path
+            file_name = os.path.basename(file_path)
+            dest_path = os.path.join('data_cleaned', file_name)
+            
+            # Move file
+            shutil.move(file_path, dest_path)
+            moved_files += 1
+        except Exception as e:
+            print(f"Error moving file {file_path}: {e}")
+            continue
+    
+    return jsonify({
+        'success': True,
+        'message': f'Moved {moved_files} files to data_cleaned directory'
+    })
+
 @app.route('/get_summary', methods=['POST'])
 def get_summary():
-    """获取会话摘要"""
+    """Get session summary"""
     data = request.json
     session_id = data.get('session_id')
     
@@ -224,32 +267,27 @@ def get_summary():
     
     if not judgments:
         return jsonify({
-            'message': '尚未提交任何判断',
+            'message': 'No judgments yet',
             'data': {
                 'total': 0,
-                'model_correct': 0,
-                'model_incorrect': 0,
-                'human_agree': 0,
-                'human_disagree': 0
+                'human_correct': 0,
+                'human_incorrect': 0,
+                'confusion_matrix': {
+                    'true_positive': 0,
+                    'false_positive': 0,
+                    'true_negative': 0,
+                    'false_negative': 0
+                }
             }
         })
     
-    # 计算统计数据
+    # Calculate statistics
     total = len(judgments)
-    model_correct = sum(1 for j in judgments if j['predicted_defect'] == j['true_defect'])
-    model_incorrect = total - model_correct
-    human_agree = sum(1 for j in judgments if j['human_judgment'] == j['true_defect'])
-    human_disagree = total - human_agree
+    human_correct = sum(1 for j in judgments if j['human_judgment'] == j['true_defect'])
+    human_incorrect = total - human_correct
     
-    # 计算混淆矩阵
-    model_cm = {
-        'true_positive': sum(1 for j in judgments if j['predicted_defect'] == 1 and j['true_defect'] == 1),
-        'false_positive': sum(1 for j in judgments if j['predicted_defect'] == 1 and j['true_defect'] == 0),
-        'true_negative': sum(1 for j in judgments if j['predicted_defect'] == 0 and j['true_defect'] == 0),
-        'false_negative': sum(1 for j in judgments if j['predicted_defect'] == 0 and j['true_defect'] == 1)
-    }
-    
-    human_cm = {
+    # Calculate confusion matrix
+    confusion_matrix = {
         'true_positive': sum(1 for j in judgments if j['human_judgment'] == 1 and j['true_defect'] == 1),
         'false_positive': sum(1 for j in judgments if j['human_judgment'] == 1 and j['true_defect'] == 0),
         'true_negative': sum(1 for j in judgments if j['human_judgment'] == 0 and j['true_defect'] == 0),
@@ -257,38 +295,34 @@ def get_summary():
     }
     
     return jsonify({
-        'message': '摘要数据',
+        'message': 'Summary data',
         'data': {
             'total': total,
-            'model_correct': model_correct,
-            'model_accuracy': model_correct / total if total > 0 else 0,
-            'model_incorrect': model_incorrect,
-            'human_agree': human_agree,
-            'human_accuracy': human_agree / total if total > 0 else 0,
-            'human_disagree': human_disagree,
-            'model_confusion_matrix': model_cm,
-            'human_confusion_matrix': human_cm
+            'human_correct': human_correct,
+            'human_accuracy': human_correct / total if total > 0 else 0,
+            'human_incorrect': human_incorrect,
+            'confusion_matrix': confusion_matrix
         }
     })
 
 @app.route('/export_session', methods=['POST'])
 def export_session():
-    """导出会话数据"""
+    """Export session data"""
     data = request.json
     session_id = data.get('session_id')
     
     if session_id not in session_data:
         return jsonify({'error': 'Invalid session ID'}), 400
     
-    # 准备导出数据
+    # Prepare export data
     export_data = {
         'session_id': session_id,
-        'total_arcs': session_data[session_id]['total_generated'],
+        'total_arcs': session_data[session_id]['total_samples'],
         'judgments': session_data[session_id]['judgments'],
         'timestamp': np.datetime64('now').astype(str)
     }
     
-    # 保存为JSON文件
+    # Save to JSON file
     filename = f"data/session_{session_id[:8]}_{export_data['timestamp'].replace(':', '-').replace(' ', '_')}.json"
     with open(filename, 'w') as f:
         json.dump(export_data, f)
@@ -296,7 +330,7 @@ def export_session():
     return jsonify({
         'success': True,
         'filename': filename,
-        'message': f"会话数据已保存到 {filename}"
+        'message': f"Session data saved to {filename}"
     })
 
 if __name__ == '__main__':

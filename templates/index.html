@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>圆弧质量检测系统</title>
+            <title>圆弧数据标注系统</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
     <style>
         body {
@@ -113,7 +113,7 @@
 <body>
     <div class="container">
         <div class="header-container">
-            <h1 class="header-title">圆弧质量检测系统</h1>
+            <h1 class="header-title">圆弧数据标注系统</h1>
             <div class="user-info">
                 <p>用户: soul667</p>
                 <p>当前时间: <span id="current-time">2025-03-03 12:57:33</span></p>
@@ -124,8 +124,11 @@
             <div class="col-md-8">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">圆弧检查</h5>
-                        <span id="arc-id-badge" class="badge bg-secondary">ID: --</span>
+                        <h5 class="mb-0">圆弧标注</h5>
+                        <div>
+                            <span id="arc-id-badge" class="badge bg-secondary me-2">ID: --</span>
+                            <span id="file-name-badge" class="badge bg-info">File: --</span>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="arc-container">
@@ -138,25 +141,31 @@
                             </div>
                         </div>
                         
-                        <div id="prediction-info" class="prediction-info bg-warning-light hidden">
-                            <h5>模型预测</h5>
-                            <p>预测结果: <span id="prediction-result">--</span></p>
-                            <p>置信度: <span id="prediction-confidence">--</span></p>
-                        </div>
-                        
                         <div class="mt-4">
-                            <h5>人工判断</h5>
-                            <p>请根据您的专业判断，决定是否接受这段圆弧</p>
+                            <h5>标注判断</h5>
+                            <p>请判断这段圆弧是否存在缺陷</p>
                             <div class="d-flex">
-                                <button id="btn-accept" class="btn btn-success me-2">
-                                    <i class="bi bi-check-circle"></i> 接受 (质量合格)
+                                <button id="btn-no-defect" class="btn btn-success me-2" title="Press '1'">
+                                    <i class="bi bi-check-circle"></i> No Defect
                                 </button>
-                                <button id="btn-reject" class="btn btn-danger me-2">
-                                    <i class="bi bi-x-circle"></i> 拒绝 (有缺陷)
+                                <button id="btn-has-defect" class="btn btn-danger me-2" title="Press '2'">
+                                    <i class="bi bi-x-circle"></i> Has Defect
                                 </button>
-                                <button id="btn-next" class="btn btn-primary">
-                                    <i class="bi bi-arrow-right"></i> 下一个
+                                <button id="btn-delete" class="btn btn-warning me-2" title="Press 'Del'">
+                                    <i class="bi bi-trash"></i> Delete
                                 </button>
+                                <button id="btn-move-cleaned" class="btn btn-info me-2">
+                                    <i class="bi bi-box-arrow-right"></i> Move Processed
+                                </button>
+                                <button id="btn-next" class="btn btn-primary" title="Press 'Right Arrow'">
+                                    <i class="bi bi-arrow-right"></i> Next
+                                </button>
+                            </div>
+                            <div class="mt-2 small text-muted">
+                                Keyboard shortcuts: <br>
+                                Left/Right Arrow - Previous/Next image<br>
+                                1 - Mark as No Defect, 2 - Mark as Has Defect<br>
+                                Del - Delete current image
                             </div>
                         </div>
                     </div>
@@ -164,22 +173,6 @@
             </div>
             
             <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">生成控制</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <h6>生成指定类型的圆弧</h6>
-                            <div class="d-grid gap-2">
-                                <button id="btn-gen-defect" class="btn btn-outline-danger">生成有缺陷圆弧</button>
-                                <button id="btn-gen-good" class="btn btn-outline-success">生成无缺陷圆弧</button>
-                                <button id="btn-gen-random" class="btn btn-outline-primary">随机生成圆弧</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
                 <div class="card mt-3">
                     <div class="card-header">
                         <h5 class="mb-0">统计摘要</h5>
@@ -192,69 +185,37 @@
                         
                         <div id="stats-content" class="hidden">
                             <div class="mb-3">
-                                <h6>检测总数: <span id="stat-total">0</span></h6>
+                                <h6>标注总数: <span id="stat-total">0</span></h6>
                             </div>
                             
                             <div class="mb-4">
-                                <h6>模型表现</h6>
+                                <h6>标注准确率</h6>
                                 <div class="progress mb-2">
-                                    <div id="model-accuracy-bar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+                                    <div id="accuracy-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%">0%</div>
                                 </div>
                                 <div class="d-flex justify-content-between">
-                                    <small>正确: <span id="stat-model-correct">0</span></small>
-                                    <small>错误: <span id="stat-model-incorrect">0</span></small>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <h6>人工表现</h6>
-                                <div class="progress mb-2">
-                                    <div id="human-accuracy-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%">0%</div>
-                                </div>
-                                <div class="d-flex justify-content-between">
-                                    <small>正确: <span id="stat-human-agree">0</span></small>
-                                    <small>错误: <span id="stat-human-disagree">0</span></small>
+                                    <small>正确: <span id="stat-correct">0</span></small>
+                                    <small>错误: <span id="stat-incorrect">0</span></small>
                                 </div>
                             </div>
                             
                             <div class="confusion-matrix">
-                                <h6>模型混淆矩阵</h6>
+                                <h6>标注结果分析</h6>
                                 <table>
                                     <tr>
                                         <th></th>
-                                        <th>预测:无缺陷</th>
-                                        <th>预测:有缺陷</th>
+                                        <th>标注:无缺陷</th>
+                                        <th>标注:有缺陷</th>
                                     </tr>
                                     <tr>
                                         <th>实际:无缺陷</th>
-                                        <td id="model-tn">0</td>
-                                        <td id="model-fp">0</td>
+                                        <td id="confusion-tn">0</td>
+                                        <td id="confusion-fp">0</td>
                                     </tr>
                                     <tr>
                                         <th>实际:有缺陷</th>
-                                        <td id="model-fn">0</td>
-                                        <td id="model-tp">0</td>
-                                    </tr>
-                                </table>
-                            </div>
-                            
-                            <div class="confusion-matrix">
-                                <h6>人工混淆矩阵</h6>
-                                <table>
-                                    <tr>
-                                        <th></th>
-                                        <th>判断:无缺陷</th>
-                                        <th>判断:有缺陷</th>
-                                    </tr>
-                                    <tr>
-                                        <th>实际:无缺陷</th>
-                                        <td id="human-tn">0</td>
-                                        <td id="human-fp">0</td>
-                                    </tr>
-                                    <tr>
-                                        <th>实际:有缺陷</th>
-                                        <td id="human-fn">0</td>
-                                        <td id="human-tp">0</td>
+                                        <td id="confusion-fn">0</td>
+                                        <td id="confusion-tp">0</td>
                                     </tr>
                                 </table>
                             </div>
@@ -290,58 +251,43 @@
             setInterval(updateTime, 1000);
             updateTime();
             
-            // 生成新圆弧
-            function generateArc(forceDefect = null) {
+            // 获取下一个圆弧
+            function nextArc(direction) {
                 $('#loading-overlay').show();
-                $('#prediction-info').addClass('hidden');
                 
-                // 准备请求数据
-                const requestData = { session_id: sessionId };
-                if (forceDefect !== null) {
-                    requestData.force_defect = forceDefect;
-                }
-                
-                // 发送请求生成新圆弧
                 $.ajax({
-                    url: '/generate_arc',
+                    url: '/next_arc',
                     type: 'POST',
                     contentType: 'application/json',
-                    data: JSON.stringify(requestData),
+                    data: JSON.stringify({ 
+                        session_id: sessionId,
+                        direction: direction 
+                    }),
                     success: function(response) {
+                        if (response.message === 'No more samples') {
+                            alert('已完成所有样本的标注！');
+                            return;
+                        }
+                        
                         // 更新界面
                         $('#arc-image').attr('src', 'data:image/png;base64,' + response.arc_image);
                         $('#arc-id-badge').text('ID: ' + response.arc_id);
+                        $('#file-name-badge').text('File: ' + response.file_name);
                         currentArcId = response.arc_id;
-                        
-                        // 显示预测信息
-                        const predictionText = response.predicted_defect === 1 ? '有缺陷' : '无缺陷';
-                        $('#prediction-result').text(predictionText);
-                        $('#prediction-confidence').text((response.confidence * 100).toFixed(1) + '%');
-                        
-                        // 根据预测结果调整背景色
-                        $('#prediction-info').removeClass('bg-warning-light bg-success-light bg-danger-light');
-                        if (response.predicted_defect === 1) {
-                            $('#prediction-info').addClass('bg-danger-light');
-                        } else {
-                            $('#prediction-info').addClass('bg-success-light');
-                        }
-                        
-                        // 显示预测信息区域
-                        $('#prediction-info').removeClass('hidden');
                         
                         // 隐藏加载层
                         $('#loading-overlay').hide();
                     },
                     error: function(error) {
-                        console.error('生成圆弧失败:', error);
-                        alert('生成圆弧失败，请重试');
+                        console.error('获取圆弧失败:', error);
+                        alert('获取圆弧失败，请重试');
                         $('#loading-overlay').hide();
                     }
                 });
             }
             
             // 提交人工判断
-            function submitJudgment(judgment) {
+            function submitJudgment(judgment, updateLabel) {
                 if (currentArcId === null) {
                     alert('请先生成圆弧');
                     return;
@@ -356,7 +302,8 @@
                     data: JSON.stringify({
                         session_id: sessionId,
                         arc_id: currentArcId,
-                        judgment: judgment
+                        judgment: judgment,
+                        update_label: updateLabel
                     }),
                     success: function(response) {
                         // 更新图像（现在包含人工判断）
@@ -365,8 +312,8 @@
                         // 获取最新统计数据
                         updateStatistics();
                         
-                        // 隐藏加载层
-                        $('#loading-overlay').hide();
+                        // 加载下一个arc
+                        nextArc('next');
                     },
                     error: function(error) {
                         console.error('提交判断失败:', error);
@@ -393,27 +340,18 @@
                             
                             // 更新基本统计
                             $('#stat-total').text(response.data.total);
-                            $('#stat-model-correct').text(response.data.model_correct);
-                            $('#stat-model-incorrect').text(response.data.model_incorrect);
-                            $('#stat-human-agree').text(response.data.human_agree);
-                            $('#stat-human-disagree').text(response.data.human_disagree);
+                            $('#stat-correct').text(response.data.human_correct);
+                            $('#stat-incorrect').text(response.data.human_incorrect);
                             
                             // 更新进度条
-                            const modelAccuracy = response.data.model_accuracy * 100;
-                            const humanAccuracy = response.data.human_accuracy * 100;
-                            $('#model-accuracy-bar').css('width', modelAccuracy + '%').text(modelAccuracy.toFixed(1) + '%');
-                            $('#human-accuracy-bar').css('width', humanAccuracy + '%').text(humanAccuracy.toFixed(1) + '%');
+                            const accuracy = response.data.human_accuracy * 100;
+                            $('#accuracy-bar').css('width', accuracy + '%').text(accuracy.toFixed(1) + '%');
                             
                             // 更新混淆矩阵
-                            $('#model-tp').text(response.data.model_confusion_matrix.true_positive);
-                            $('#model-fp').text(response.data.model_confusion_matrix.false_positive);
-                            $('#model-tn').text(response.data.model_confusion_matrix.true_negative);
-                            $('#model-fn').text(response.data.model_confusion_matrix.false_negative);
-                            
-                            $('#human-tp').text(response.data.human_confusion_matrix.true_positive);
-                            $('#human-fp').text(response.data.human_confusion_matrix.false_positive);
-                            $('#human-tn').text(response.data.human_confusion_matrix.true_negative);
-                            $('#human-fn').text(response.data.human_confusion_matrix.false_negative);
+                            $('#confusion-tp').text(response.data.confusion_matrix.true_positive);
+                            $('#confusion-fp').text(response.data.confusion_matrix.false_positive);
+                            $('#confusion-tn').text(response.data.confusion_matrix.true_negative);
+                            $('#confusion-fn').text(response.data.confusion_matrix.false_negative);
                         }
                     },
                     error: function(error) {
@@ -441,19 +379,90 @@
                 });
             }
             
-            // 按钮事件绑定
-            $('#btn-accept').click(function() { submitJudgment(0); }); // 接受（无缺陷）
-            $('#btn-reject').click(function() { submitJudgment(1); }); // 拒绝（有缺陷）
-            $('#btn-next').click(function() { generateArc(); });
-            
-            $('#btn-gen-defect').click(function() { generateArc(true); });
-            $('#btn-gen-good').click(function() { generateArc(false); });
-            $('#btn-gen-random').click(function() { generateArc(); });
-            
+            // Move processed files to cleaned directory
+            function moveCleanedData() {
+                if (!currentArcId) return;
+                
+                if (confirm('Move all processed files to cleaned directory?')) {
+                    $.ajax({
+                        url: '/move_cleaned_data',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            session_id: sessionId,
+                            current_index: currentArcId
+                        }),
+                        success: function(response) {
+                            alert(response.message);
+                            // Reload page to refresh data
+                            location.reload();
+                        },
+                        error: function(error) {
+                            console.error('Moving files failed:', error);
+                            alert('Moving files failed, please try again');
+                        }
+                    });
+                }
+            }
+
+            // Button event binding
+            $('#btn-no-defect').click(function() { submitJudgment(0, true); }); // No defect
+            $('#btn-has-defect').click(function() { submitJudgment(1, true); }); // Has defect
+            $('#btn-next').click(function() { nextArc('next'); });
+            $('#btn-delete').click(deleteCurrentArc);
+            $('#btn-move-cleaned').click(moveCleanedData);
             $('#btn-export').click(exportSessionData);
             
-            // 初始化 - 生成第一个圆弧
-            generateArc();
+            // Keyboard shortcuts
+            $(document).keydown(function(e) {
+                if (currentArcId === null) return;
+                
+                switch(e.keyCode) {
+                    case 37: // Left arrow
+                        nextArc('prev');
+                        break;
+                    case 39: // Right arrow
+                        nextArc('next');
+                        break;
+                    case 49: // 1 key
+                        submitJudgment(0, true);
+                        break;
+                    case 50: // 2 key
+                        submitJudgment(1, true);
+                        break;
+                    case 46: // Delete key
+                        deleteCurrentArc();
+                        break;
+                }
+            });
+            
+            // Delete current arc
+            function deleteCurrentArc() {
+                if (currentArcId === null) return;
+                
+                if (confirm('Are you sure you want to delete this arc?')) {
+                    $.ajax({
+                        url: '/delete_arc',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            session_id: sessionId,
+                            arc_id: currentArcId
+                        }),
+                        success: function(response) {
+                            alert(response.message);
+                            nextArc('next');
+                        },
+                        error: function(error) {
+                            console.error('Delete failed:', error);
+                            alert('Delete failed, please try again');
+                        }
+                    });
+                }
+            }
+            
+            // Initialize - get first arc
+            nextArc('next');
         });
     </script>
 </body>

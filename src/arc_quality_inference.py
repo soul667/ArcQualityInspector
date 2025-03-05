@@ -1,12 +1,12 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from arc_quality_detection_pytorch import ArcQualityRNN
+from arc_quality_detection_pytorch import EnhancedArcQualityRNN
 
 def load_model(model_path='best_arc_quality_model.pth'):
     """加载训练好的模型"""
     # 创建模型结构
-    model = ArcQualityRNN(input_size=1, hidden_size=64, num_layers=2, output_size=1)
+    model = EnhancedArcQualityRNN(input_size=1, hidden_size=64, num_layers=2, output_size=1)
     
     # 加载权重
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))

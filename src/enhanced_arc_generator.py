@@ -1,13 +1,13 @@
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
+matplotlib.use('TkAgg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
 class ArcDataGenerator:
     """增强的圆弧数据生成器，提供多样化的圆弧和缺陷模式"""
     
-    def __init__(self, seq_length=100, radius=1.0, smoothing_window=5):
+    def __init__(self, seq_length=500, radius=1.0, smoothing_window=5):
         self.seq_length = seq_length
         self.base_radius = radius
         self.smoothing_window = smoothing_window
@@ -335,11 +335,11 @@ if __name__ == "__main__":
     import os
     
     # Initialize generator
-    generator = ArcDataGenerator(seq_length=350)
+    generator = ArcDataGenerator(seq_length=500)
     
     # Generate and save samples to data directory
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
-    X, y, masks, params = generator.generate_dataset(100, save_dir=data_dir)
+    X, y, masks, params = generator.generate_dataset(10000, save_dir=data_dir)
     
     # Visualize samples
     generator.visualize_samples(X, y, masks, 5)

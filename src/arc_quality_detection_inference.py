@@ -1,23 +1,53 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
+import torch
+from arc_quality_detection_pytorch import EnhancedArcQualityRNN
 
-def load_arc_quality_model(model_path='best_arc_quality_model.h5'):
+def normalize_sequence_length(sequence, target_length=500):
+    """
+    将序列标准化为指定长度
+    
+    参数:
+        sequence: 输入序列
+        target_length: 目标序列长度，默认500
+        
+    返回:
+        标准化后的序列
+    """
+    current_length = len(sequence)
+    if current_length == target_length:
+        return sequence
+    
+    # 创建等间隔的新索引点
+    old_indices = np.arange(current_length)
+    new_indices = np.linspace(0, current_length - 1, target_length)
+    
+    # 使用线性插值调整序列长度
+    return np.interp(new_indices, old_indices, sequence)
+
+def load_arc_quality_model(model_path='best_arc_quality_model.pth'):
     """加载训练好的模型"""
-    return load_model(model_path)
+    model = EnhancedArcQualityRNN(input_size=1, hidden_size=64, num_layers=2, output_size=1)
+    model.load_state_dict(torch.load(model_path, weights_only=True))
+    model.eval()
+    return model
 
 def detect_arc_quality(model, arc_points):
     """
     检测单个圆弧的质量
     :param model: 训练好的模型
-    :param arc_points: 形状为 (seq_length,) 的一维数组
+    :param arc_points: 任意长度的一维数组
     :return: 质量预测 (0=低质量, 1=高质量)
     """
+    # 标准化序列长度为500点
+    normalized_points = normalize_sequence_length(arc_points)
+    
     # 重塑输入为模型所需的形状
-    X = arc_points.reshape(1, len(arc_points), 1)
+    X = torch.FloatTensor(normalized_points).reshape(1, 500, 1)
     
     # 进行预测
-    prediction = model.predict(X)[0][0]
+    with torch.no_grad():
+        prediction = model(X).item()
     
     # 将预测概率转换为类别
     quality_class = 1 if prediction >= 0.5 else 0
@@ -36,10 +66,10 @@ def visualize_prediction(arc_points, quality_class, probability):
     plt.savefig('arc_prediction.png')
     plt.show()
 
-def generate_test_arc(seq_length=100, quality=None):
+def generate_test_arc(seq_length=500, quality=None):
     """
     生成测试用的圆弧
-    :param seq_length: 序列长度
+    :param seq_length: 序列长度，默认500
     :param quality: 如果为None，随机生成；否则为0（低质量）或1（高质量）
     :return: 圆弧点序列和真实质量标签
     """
@@ -75,20 +105,24 @@ def main():
     try:
         model = load_arc_quality_model()
         print("模型加载成功！")
-    except:
-        print("模型加载失败，请确保已经训练并保存了模型。")
+    except Exception as e:
+        print(f"模型加载失败: {str(e)}")
+        print("请确保已经训练并保存了模型。")
         return
     
-    # 生成一些测试圆弧并进行预测
-    for i in range(5):
+    # 生成不同长度的测试圆弧并进行预测
+    test_lengths = [40, 100, 200, 500]  # 测试不同长度的输入
+    
+    for length in test_lengths:
+        print(f"\n测试长度为 {length} 的圆弧:")
         # 生成测试圆弧
-        arc_points, true_quality = generate_test_arc()
+        arc_points, true_quality = generate_test_arc(seq_length=length)
         
         # 检测质量
         predicted_quality, probability = detect_arc_quality(model, arc_points)
         
         # 打印结果
-        print(f"测试圆弧 {i+1}:")
+        print(f"输入长度: {length}")
         print(f"真实质量: {'高质量' if true_quality == 1 else '低质量'}")
         print(f"预测质量: {'高质量' if predicted_quality == 1 else '低质量'}")
         print(f"预测概率: {probability:.4f}")

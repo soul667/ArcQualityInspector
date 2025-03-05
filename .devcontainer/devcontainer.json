@@ -3,6 +3,12 @@
     "dockerFile": "Dockerfile",
     "context": "..",
     
+    // 配置GPU支持
+    "runArgs": ["--gpus=all"],
+    "mounts": [
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+    ],
+    
     // 在容器启动后设置要执行的命令 && mkdir -p models static/images data
     "postCreateCommand": "echo 'DevContainer创建完成！' ",
     
@@ -13,8 +19,9 @@
         "HTTPS_PROXY": "",
         "NO_PROXY": "*",
         "http_proxy": "",
-        "https_proxy": ""
-      },
+        "https_proxy": "",
+        "NVIDIA_VISIBLE_DEVICES": "all"
+    },
     // 复制.bashrc配置和VS Code设置
     "customizations": {
         "vscode": {

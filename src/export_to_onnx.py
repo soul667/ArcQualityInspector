@@ -1,13 +1,13 @@
 import torch
 import numpy as np
 import argparse
-from arc_quality_detection_pytorch import ArcQualityRNN
+from arc_quality_detection_pytorch import EnhancedArcQualityRNN
 
-def export_model_to_onnx(model_path, onnx_path, seq_length=100):
+def export_model_to_onnx(model_path, onnx_path, seq_length=500):
     """将PyTorch模型导出为ONNX格式"""
     # 加载训练好的模型
-    model = ArcQualityRNN(input_size=1, hidden_size=64, num_layers=2, output_size=1)
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+    model = EnhancedArcQualityRNN(input_size=1, hidden_size=64, num_layers=1, output_size=1)
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'), weights_only=True))
     model.eval()
     
     print(f"加载PyTorch模型: {model_path}")
@@ -58,8 +58,8 @@ if __name__ == "__main__":
                         help='PyTorch模型路径')
     parser.add_argument('--onnx_path', type=str, default='arc_quality_model.onnx',
                         help='ONNX模型输出路径')
-    parser.add_argument('--seq_length', type=int, default=100,
-                        help='序列长度')
+    parser.add_argument('--seq_length', type=int, default=500,
+                        help='序列长度（默认500点）')
     
     args = parser.parse_args()
     
