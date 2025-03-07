@@ -45,11 +45,14 @@ class ArcDataGenerator:
         arc_points[start:end] += deformation
         return arc_points
         
-    def add_radius_change_defect(self, arc_points, region, perfect_arc, change_range=(-0.3, 0.3)):
+    def add_radius_change_defect(self, arc_points, region, perfect_arc, min_change=0.2, max_change=0.5):
         """添加半径变化缺陷"""
         start, end = region
         length = end - start
-        radius_change = np.random.uniform(change_range[0], change_range[1])
+        # 确保半径变化的绝对值在指定范围内
+        radius_change_abs = np.random.uniform(min_change, max_change)
+        # 随机决定正负方向
+        radius_change = radius_change_abs * np.random.choice([-1, 1])
         original_values = perfect_arc[start:end]
         # 平滑过渡
         factor = 1 + radius_change * np.sin(np.linspace(0, np.pi, length))
@@ -339,7 +342,7 @@ if __name__ == "__main__":
     
     # Generate and save samples to data directory
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
-    X, y, masks, params = generator.generate_dataset(10000, save_dir=data_dir)
+    X, y, masks, params = generator.generate_dataset(20000, save_dir=data_dir)
     
     # Visualize samples
     generator.visualize_samples(X, y, masks, 5)
